@@ -4,19 +4,23 @@
 
 #include <fmt/format.h>
 
+#include <vector>
+
 namespace gc
 {
 
 struct root
 {
-    explicit root(StellaValue const* slot) noexcept
+    explicit root(StellaValue* slot) noexcept
         : slot{slot}
     {}
 
     auto operator<=>(root const&) const noexcept = default;
 
-    StellaValue const* slot{};
+    StellaValue* slot{};
 };
+
+using roots_t = std::vector<root>;
 
 } // namespace gc
 
