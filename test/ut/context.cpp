@@ -30,10 +30,10 @@ void alloc_initializes_object_and_stats()
     CHECK(obj->fields[1].managed == nullptr);
     CHECK(obj->fields[2].primitive == 0);
     CHECK(stats.allocated_objects == 1);
-    CHECK(stats.my_requested_bytes == test::requested_size(desc));
-    CHECK(stats.my_rounded_bytes == rounded_size(desc));
-    CHECK(stats.my_occupied_bytes == rounded_size(desc));
-    CHECK(stats.my_maximum_occupied_bytes == rounded_size(desc));
+    CHECK(stats.requested_bytes == test::requested_size(desc));
+    CHECK(stats.rounded_bytes == rounded_size(desc));
+    CHECK(stats.occupied_bytes == rounded_size(desc));
+    CHECK(stats.maximum_occupied_bytes == rounded_size(desc));
     CHECK(ctx.heap().fromNext() == rounded_size(desc));
 }
 
@@ -62,14 +62,14 @@ void allocation_accounting_is_cumulative()
 
     ctx.alloc(&small);
     CHECK(stats.allocated_objects == 1);
-    CHECK(stats.my_requested_bytes == test::requested_size(small));
-    CHECK(stats.my_rounded_bytes == rounded_size(small));
+    CHECK(stats.requested_bytes == test::requested_size(small));
+    CHECK(stats.rounded_bytes == rounded_size(small));
 
     StellaValue obj = ctx.alloc(&big);
     CHECK(stats.allocated_objects == 2);
-    CHECK(stats.my_requested_bytes == test::requested_size(small) + test::requested_size(big));
-    CHECK(stats.my_rounded_bytes == rounded_size(small) + rounded_size(big));
-    CHECK(stats.my_occupied_bytes == ctx.heap().fromNext());
+    CHECK(stats.requested_bytes == test::requested_size(small) + test::requested_size(big));
+    CHECK(stats.rounded_bytes == rounded_size(small) + rounded_size(big));
+    CHECK(stats.occupied_bytes == ctx.heap().fromNext());
     CHECK(obj->fields == reinterpret_cast<StellaSlot*>(obj + 1));
 }
 

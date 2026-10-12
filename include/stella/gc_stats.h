@@ -19,6 +19,9 @@ typedef struct StellaGcStats {
   size_t maximum_dynamic_root_depth;
   size_t permanent_root_count;
   size_t failed_allocations;
+
+  size_t total_scans;
+  size_t scan_out_of_budget;
 } StellaGcStats;
 
 #endif

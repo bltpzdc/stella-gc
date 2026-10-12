@@ -108,11 +108,11 @@ void alloc_grows_accounting()
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 2, 1, 4);
     heap.alloc(&desc);
 
-    CHECK(stats.my_requested_bytes == test::requested_size(desc));
-    CHECK(stats.my_rounded_bytes == rounded_size(desc));
+    CHECK(stats.requested_bytes == test::requested_size(desc));
+    CHECK(stats.rounded_bytes == rounded_size(desc));
     CHECK(stats.allocated_objects == 1);
-    CHECK(stats.my_occupied_bytes == heap.fromNext());
-    CHECK(stats.my_maximum_occupied_bytes == heap.fromNext());
+    CHECK(stats.occupied_bytes == heap.fromNext());
+    CHECK(stats.maximum_occupied_bytes == heap.fromNext());
     CHECK(stats.collections == 0);
 }
 

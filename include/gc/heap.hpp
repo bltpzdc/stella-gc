@@ -66,8 +66,8 @@ public:
         auto const requested = utils::object_size(desc);
         auto const toAlloc = utils::round_object_size(requested);
         
-        m_stats.my_requested_bytes += requested;
-        m_stats.my_rounded_bytes += toAlloc;
+        m_stats.requested_bytes += requested;
+        m_stats.rounded_bytes += toAlloc;
 
         StellaValue out{};
         if (m_isCollecting) { out = allocTo(toAlloc); }
@@ -83,13 +83,14 @@ public:
             out->fields[real].primitive = 0;
         }
 
-        m_stats.my_occupied_bytes = m_next + (m_end - m_limit);
-        m_stats.my_maximum_occupied_bytes = std::max(m_stats.my_maximum_occupied_bytes, m_stats.my_occupied_bytes);
+        m_stats.occupied_bytes = m_next + (m_end - m_limit);
+        m_stats.maximum_occupied_bytes = std::max(m_stats.maximum_occupied_bytes, m_stats.occupied_bytes);
         ++m_stats.allocated_objects;
 
         return out;
     }
 
+    // this forward is used only for managed reads in Baker's algorithm
     StellaValue forward(StellaValue obj)
     {
         if (!m_isCollecting) { return obj; }
@@ -107,6 +108,10 @@ private:
         stella_gc_out_of_memory(requested);
     }
 
+    // forwards object from FROM_SPACE to TO_SPACE
+    // if object is static or null does nothing
+    // if object was already forwarded returns the existing forwarding reference from meta gc_word field
+    // if object is forwarded in 1st time, returns new address in TO_SPACE and sets a forwarding reference 
     StellaValue forwardImpl(StellaValue obj)
     {
         if (!obj || !inFromSpace(obj)) { return obj; }
@@ -125,6 +130,7 @@ private:
         return forwarded;
     }
 
+    // scans objects in Cheney's queue; invariant "scan < next" should be checked by caller
     void scanOne()
     {
         auto obj = reinterpret_cast<StellaValue>(m_toSpace.get() + m_scan);
@@ -135,21 +141,23 @@ private:
         }
 
         m_scan += utils::round_object_size(utils::object_size(obj->descriptor));
-        // TODO: inc metric
+        ++m_stats.total_scans;
     }
 
+    // synchronious collection finish in case of OOM for a new allocation
     void finishWoBudget()
     {
         while (m_scan < m_next)
         {
-            scanOne();
             ++m_stats.scan_out_of_budget;
+            scanOne();
         }
 
         m_isCollecting = false;
         std::swap(m_fromSpace, m_toSpace);
     }
 
+    // only starts incremental collection; roots forwarding
     void collect()
     {
         ++m_stats.collections;
@@ -162,6 +170,7 @@ private:
         for (auto& root : m_dynamicRoots) { *root.slot = forwardImpl(*root.slot); }
     }
 
+    // executes before every new allocation as a part of incremental collection
     void collectionStep()
     {
         if (!m_isCollecting) { return; }

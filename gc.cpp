@@ -291,12 +291,6 @@ StellaValue stella_gc_alloc(const StellaObjectDescriptor *descriptor) {
   allocation->next = allocations;
   allocations = allocation;
 
-  counters.requested_bytes += requested;
-  counters.rounded_bytes += rounded;
-  counters.occupied_bytes += requested;
-  if (counters.occupied_bytes > counters.maximum_occupied_bytes) {
-    counters.maximum_occupied_bytes = counters.occupied_bytes;
-  }
   return object;
 }
 
@@ -399,20 +393,13 @@ void stella_gc_print_statistics(FILE *output) {
   }
   fprintf(output, "requested bytes: %zu\n", counters.requested_bytes);
   fprintf(output, "rounded bytes: %zu\n", counters.rounded_bytes);
-  fprintf(output, "my requested bytes: %zu\n", counters.my_requested_bytes);
-  fprintf(output, "my rounded bytes: %zu\n", counters.my_rounded_bytes);
   fprintf(output, "allocated objects: %zu\n", counters.allocated_objects);
   fprintf(output, "collections: %zu\n", counters.collections);
   fprintf(output, "occupied bytes: %zu\n", counters.occupied_bytes);
-  fprintf(output, "my occupied bytes: %zu\n", counters.my_occupied_bytes);
   fprintf(
       output,
       "maximum occupied bytes: %zu\n",
       counters.maximum_occupied_bytes);
-  fprintf(
-      output,
-      "my maximum occupied bytes: %zu\n",
-      counters.my_maximum_occupied_bytes);
   fprintf(output, "managed reads: %zu\n", counters.managed_reads);
   fprintf(output, "managed writes: %zu\n", counters.managed_writes);
   fprintf(output, "primitive reads: %zu\n", counters.primitive_reads);
@@ -432,6 +419,9 @@ void stella_gc_print_statistics(FILE *output) {
       counters.maximum_dynamic_root_depth);
   fprintf(output, "permanent roots: %zu\n", counters.permanent_root_count);
   fprintf(output, "failed allocations: %zu\n", counters.failed_allocations);
+
+  fprintf(output, "total scans: %zu\n", counters.total_scans);
+  fprintf(output, "scans out of budget: %zu\n", counters.scan_out_of_budget);
 }
 
 void stella_gc_print_roots(FILE *output) {

@@ -93,28 +93,33 @@ public:
         validateAnyObject(obj);
         if (idx >= obj->descriptor->managed_count) { stella_abi_violation("invalid index of reading managed field"); }
         auto& field = obj->fields[idx].managed;
-        field = m_heap.forward(field);
+        field = m_heap.forward(field); // managed read barrier
 
         return field;
     }
 
     void writeManaged(root target, size_t idx, root value)
     {
+        ++m_gcStats.managed_writes;
+
         validateRoot(target.slot);
         validateRoot(value.slot);
         auto& obj = *target.slot;
         validateAnyObject(obj);
+
         if (obj->descriptor->flags & StellaDescriptorFlags::STELLA_DESCRIPTOR_STATIC) { stella_abi_violation("writing managed in static object"); }
         if (idx >= obj->descriptor->managed_count) { stella_abi_violation("invalid index of writing managed field"); }
-        obj->fields[idx].managed = *value.slot;
-        ++m_gcStats.managed_writes;
+
+        obj->fields[idx].managed = *value.slot; // no write managed barriers in Baker's algorithm
     }
 
     StellaPrimitive readPrimitive(StellaValue obj, size_t idx)
     {
         ++m_gcStats.primitive_reads;
+
         validateAnyObject(obj);
         if (idx >= obj->descriptor->primitive_count) { stella_abi_violation("invalid index of reading primitive field"); }
+
         auto const real = obj->descriptor->managed_count + idx;
         return obj->fields[real].primitive;
     }
@@ -122,9 +127,11 @@ public:
     void writePrimitive(StellaValue target, size_t idx, StellaPrimitive value)
     {
         ++m_gcStats.primitive_writes;
+
         validateAnyObject(target);
         if (target->descriptor->flags & StellaDescriptorFlags::STELLA_DESCRIPTOR_STATIC) { stella_abi_violation("writing primitive in static object"); }
         if (idx >= target->descriptor->primitive_count) { stella_abi_violation("invalid index of writing primitive field"); }
+
         auto const real = target->descriptor->managed_count + idx;
         target->fields[real].primitive = value;
     }
@@ -141,6 +148,7 @@ public:
         if (oldDescriptor->slot_capacity != newDescriptor->slot_capacity) { stella_abi_violation("object-layout update changes slot capacity"); }
         for (auto const& managedRoot : managedRoots) { validateRoot(managedRoot.slot); }
 
+        // no write barriers since Baker's algorithm doesn't have them
         for (size_t i = 0; i < newDescriptor->managed_count; ++i) {
             obj->fields[i].managed = *managedRoots[i].slot;
             ++m_gcStats.managed_writes;
