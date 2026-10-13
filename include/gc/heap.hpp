@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bridge.hpp"
+#include "config.hpp"
 #include "root.hpp"
 #include "utils.hpp"
 
@@ -20,10 +21,12 @@ public:
         , m_stats{stats}
     {}
 
-    void init(StellaGcConfig const& cfg)
+    void init(gc::config const& cfg)
     {
         if (m_fromSpace) { stella_abi_violation("re-initialization of heap requested"); }
         if (cfg.max_heap_bytes == 0) { stella_abi_violation("zero-length heap size requested"); }
+        if (cfg.scansPerStep == 0) { stella_abi_violation("zero scans per allocation step"); }
+        if (cfg.collectionThreshhold == 0 || cfg.collectionThreshhold > 100) { stella_abi_violation("collection threshold out of range"); }
 
         try
         {
@@ -36,6 +39,8 @@ public:
         }
         
         m_limit = m_end = cfg.max_heap_bytes;
+        m_scansPerStep = cfg.scansPerStep;
+        m_collectionThreshhold = cfg.collectionThreshhold;
     }
 
     bool inFromSpace(void* object)
@@ -175,7 +180,8 @@ private:
     {
         if (!m_isCollecting) { return; }
 
-        while (m_scan < m_next && m_k --> 0) { scanOne(); }
+        auto scansLeft = m_scansPerStep;
+        while (m_scan < m_next && scansLeft --> 0) { scanOne(); }
 
         if (m_scan == m_next)
         {
@@ -184,19 +190,26 @@ private:
         }
     }
 
+    bool thresholdReached() const noexcept
+    {
+        // during a collection old objects are copied to the beginning (m_next)
+        // while new allocations consume the end (m_end - m_limit), so the
+        // occupied part of from-space is their sum
+        auto const occupied = m_next + (m_end - m_limit);
+        return occupied * 100 >= m_end * m_collectionThreshhold;
+    }
+
     StellaValue allocFrom(size_t objSize)
     {
-        if (enoughSpace(objSize))
+        if (enoughSpace(objSize) && !thresholdReached())
         {
             auto allocated = reinterpret_cast<StellaValue>(m_fromSpace.get() + m_next);
             m_next += objSize;
             return allocated;
         }
-        else
-        {
-            collect();
-            return allocTo(objSize);
-        }
+
+        collect();
+        return allocTo(objSize);
     }
 
     StellaValue allocTo(size_t objSize)
@@ -226,7 +239,8 @@ private:
     size_t m_limit{};
     size_t m_end{};
 
-    size_t m_k{1};
+    size_t m_scansPerStep{1};
+    size_t m_collectionThreshhold{100};
     bool m_isCollecting{};
 
     StellaGcStats& m_stats;

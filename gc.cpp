@@ -208,11 +208,14 @@ void stella_gc_init(const StellaGcConfig *config) {
   if (config->abi_version != STELLA_C_GC_ABI_VERSION) {
     stella_abi_violation("incompatible collector ABI version");
   }
-  if (config->max_heap_bytes == 0) {
+
+  gc::config cfg{*config};
+  cfg.readEnvs();
+  if (cfg.max_heap_bytes == 0) {
     stella_abi_violation("zero maximum heap size");
   }
-  g_gc_context.heap().init(*config);
-  max_heap_bytes = config->max_heap_bytes;
+  g_gc_context.heap().init(cfg);
+  max_heap_bytes = cfg.max_heap_bytes;
   lifecycle = LIFECYCLE_ACTIVE;
 }
 
