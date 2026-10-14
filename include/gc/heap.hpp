@@ -62,6 +62,7 @@ public:
     StellaValue toBegin() const noexcept { return reinterpret_cast<StellaValue>(m_toSpace.get()); }
     size_t fromNext() const noexcept { return m_next; }
     size_t limit() const noexcept { return m_limit; }
+    size_t end() const noexcept { return m_end; }
     bool isCollecting() const noexcept { return m_isCollecting; }
 
     StellaValue alloc(StellaObjectDescriptor const* desc)
@@ -152,6 +153,8 @@ private:
     // synchronious collection finish in case of OOM for a new allocation
     void finishWoBudget()
     {
+        ++m_stats.collections_with_scans_out_of_budget;
+
         while (m_scan < m_next)
         {
             ++m_stats.scan_out_of_budget;
@@ -160,6 +163,7 @@ private:
 
         m_isCollecting = false;
         std::swap(m_fromSpace, m_toSpace);
+        ++m_stats.finished_collections;
     }
 
     // only starts incremental collection; roots forwarding
@@ -187,6 +191,7 @@ private:
         {
             m_isCollecting = false;
             std::swap(m_fromSpace, m_toSpace);
+            ++m_stats.finished_collections;
         }
     }
 

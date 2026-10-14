@@ -91,44 +91,52 @@ public:
         fprintf(output, "requested bytes: %zu\n", m_gcStats.requested_bytes);
         fprintf(output, "rounded bytes: %zu\n", m_gcStats.rounded_bytes);
         fprintf(output, "allocated objects: %zu\n", m_gcStats.allocated_objects);
+
         fprintf(output, "collections: %zu\n", m_gcStats.collections);
+        fprintf(output, "finished collections: %zu\n", m_gcStats.finished_collections);
+        fprintf(output, "collections with scans out of budget: %zu\n", m_gcStats.collections_with_scans_out_of_budget);
+        fprintf(output, "total scans: %zu\n", m_gcStats.total_scans);
+        fprintf(output, "scans out of budget: %zu\n", m_gcStats.scan_out_of_budget);
+
         fprintf(output, "occupied bytes: %zu\n", m_gcStats.occupied_bytes);
         fprintf(output, "maximum occupied bytes: %zu\n", m_gcStats.maximum_occupied_bytes);
+
         fprintf(output, "managed reads: %zu\n", m_gcStats.managed_reads);
         fprintf(output, "managed writes: %zu\n", m_gcStats.managed_writes);
         fprintf(output, "primitive reads: %zu\n", m_gcStats.primitive_reads);
         fprintf(output, "primitive writes: %zu\n", m_gcStats.primitive_writes);
         fprintf(output, "read barrier activations: %zu\n", m_gcStats.read_barrier_activations);
         fprintf(output, "write barrier activations: %zu\n", m_gcStats.write_barrier_activations);
+
         fprintf(output, "dynamic roots: %zu\n", m_gcStats.dynamic_root_depth);
         fprintf(output, "maximum dynamic roots: %zu\n", m_gcStats.maximum_dynamic_root_depth);
         fprintf(output, "permanent roots: %zu\n", m_gcStats.permanent_root_count);
+
         fprintf(output, "failed allocations: %zu\n", m_gcStats.failed_allocations);
-        fprintf(output, "total scans: %zu\n", m_gcStats.total_scans);
-        fprintf(output, "scans out of budget: %zu\n", m_gcStats.scan_out_of_budget);
+        
     }
 
-    void printState(FILE* output, char const* description)
+void printState(FILE* output, char const* description)
     {
         requireActive();
         if (!output) { stella_abi_violation("null state output stream"); }
 
         Heap& heap = m_heap;
-        size_t const occupied = heap.fromNext();
+        size_t const occupied = m_gcStats.occupied_bytes;
         fprintf(
             output,
-            "%s: from-space=[%p,%p) occupied=%zu limit=%zu to-space=%p\n",
+            "%s: from-space=[%p,%p) to-space=[%p,%p) occupied=%zu limit=%zu\n",
             description,
             (void*)heap.fromBegin(),
-            (void*)((unsigned char*)heap.fromBegin() + occupied),
+            (void*)((unsigned char*)heap.fromBegin() + heap.end()),
+            (void*)heap.toBegin(),
+            (void*)((unsigned char*)heap.toBegin() + heap.end()),
             occupied,
-            heap.limit(),
-            (void*)heap.toBegin());
-        if (heap.isCollecting()) {
-            fprintf(output, "collection in progress\n");
-        } else {
-            unsigned char* pos = (unsigned char*)heap.fromBegin();
-            unsigned char* const end = (unsigned char*)heap.fromBegin() + occupied;
+            heap.limit());
+
+        auto const dumpObjects = [&](unsigned char const* begin, size_t size) {
+            unsigned char const* const end = begin + size;
+            unsigned char const* pos = begin;
             while (pos < end) {
                 StellaValue object = (StellaValue)pos;
                 const StellaObjectDescriptor* descriptor = object->descriptor;
@@ -164,7 +172,19 @@ public:
                 }
                 pos += rounded;
             }
+        };
+
+        if (heap.isCollecting()) {
+            // since Baker's algorithm doesn't guarantee that all live objects are forwarded
+            // only forwarded objects (from begin to next) or newly allocated (from limit to end) are printed
+            fprintf(output, "collection in progress; not all live objects are in to-space\n");
+            dumpObjects((unsigned char*)heap.toBegin(), heap.fromNext());
+            dumpObjects((unsigned char*)heap.toBegin() + heap.limit(), heap.end() - heap.limit());
+        } else {
+            dumpObjects((unsigned char*)heap.fromBegin(), heap.fromNext());
+            dumpObjects((unsigned char*)heap.fromBegin() + heap.limit(), heap.end() - heap.limit());
         }
+
         printRoots(output);
     }
 
@@ -201,9 +221,9 @@ public:
 
     StellaValue readManaged(root root, size_t idx)
     {
-        requireActive();
-
         ++m_gcStats.managed_reads;
+
+        requireActive();
 
         validateRoot(root.slot);
         auto obj = *root.slot;

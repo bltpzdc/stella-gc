@@ -6,22 +6,28 @@ typedef struct StellaGcStats {
   size_t requested_bytes;
   size_t rounded_bytes;
   size_t allocated_objects;
+
   size_t collections;
+  size_t finished_collections;
+  size_t collections_with_scans_out_of_budget;
+  size_t total_scans;
+  size_t scan_out_of_budget;
+
   size_t occupied_bytes;
   size_t maximum_occupied_bytes;
+
   size_t managed_reads;
   size_t managed_writes;
   size_t primitive_reads;
   size_t primitive_writes;
   size_t read_barrier_activations;
-  size_t write_barrier_activations;
+  size_t write_barrier_activations; // should be zero due to Baker's algorithm invariants
+
   size_t dynamic_root_depth;
   size_t maximum_dynamic_root_depth;
   size_t permanent_root_count;
-  size_t failed_allocations;
 
-  size_t total_scans;
-  size_t scan_out_of_budget;
+  size_t failed_allocations;
 } StellaGcStats;
 
 #endif
