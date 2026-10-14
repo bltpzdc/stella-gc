@@ -1,0 +1,4 @@
+/build/
+/chat
+/chat_c
+test/ut/*.test
