@@ -17,7 +17,7 @@ void alloc_initializes_object_and_stats()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 2, 1);
     StellaValue obj = ctx.alloc(&desc);
@@ -41,7 +41,7 @@ void alloc_without_slots_has_null_fields()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
     StellaValue obj = ctx.alloc(&desc);
@@ -55,7 +55,7 @@ void allocation_accounting_is_cumulative()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const small = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
     auto const big = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0, 2);
@@ -77,7 +77,7 @@ void alloc_rejects_null_descriptor()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     CHECK_VIOLATION(ctx.alloc(nullptr), "null object descriptor");
 }
@@ -86,7 +86,7 @@ void alloc_rejects_invalid_abi_version()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto desc = make_desc();
     desc.abi_version = 0;
@@ -97,7 +97,7 @@ void alloc_rejects_invalid_kind()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto desc = make_desc();
     desc.kind = 0;
@@ -111,7 +111,7 @@ void alloc_rejects_executable_without_entry_code()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto thunk = make_desc(STELLA_OBJECT_THUNK);
     CHECK_VIOLATION(ctx.alloc(&thunk), "no entry code in executable object");
@@ -124,7 +124,7 @@ void alloc_rejects_entry_code_in_non_executable()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const data = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0, 0, test::noop_entry);
     CHECK_VIOLATION(ctx.alloc(&data), "entry code in non-executabel object");
@@ -137,7 +137,7 @@ void alloc_rejects_nonzero_arity_outside_closure()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const data = make_desc(STELLA_OBJECT_DATA, 0, 1);
     CHECK_VIOLATION(ctx.alloc(&data), "non-zero entry arity in non-closure object");
@@ -153,7 +153,7 @@ void alloc_rejects_invalid_flags()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto desc = make_desc();
     desc.flags = STELLA_DESCRIPTOR_STATIC | STELLA_DESCRIPTOR_UPDATABLE | 4;
@@ -167,7 +167,7 @@ void alloc_rejects_field_count_overflow()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto desc = make_desc();
     desc.managed_count = SIZE_MAX;
@@ -179,7 +179,7 @@ void alloc_rejects_fields_beyond_capacity()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 2, 2, 3);
     CHECK_VIOLATION(ctx.alloc(&desc),
@@ -190,7 +190,7 @@ void alloc_rejects_static_descriptor()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_STATIC);
     CHECK_VIOLATION(ctx.alloc(&desc), "static object allocation requested");
@@ -200,7 +200,7 @@ void init_managed_and_primitive_fields()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 1);
     StellaValue obj = ctx.alloc(&desc);
@@ -222,7 +222,7 @@ void init_on_null_or_foreign_object_is_rejected()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 1);
 
@@ -239,7 +239,7 @@ void read_write_managed_fields()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     StellaValue null_slot = nullptr;
@@ -277,7 +277,7 @@ void read_write_managed_require_registered_roots()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     StellaValue unregistered = ctx.alloc(&desc);
@@ -297,7 +297,7 @@ void read_barrier_forwards_field_during_collection()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(256));
+    ctx.init(make_config(256));
 
     auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     auto const y_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
@@ -335,7 +335,7 @@ void read_primitive_and_write_primitive()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 1);
     StellaValue obj = ctx.alloc(&desc);
@@ -357,7 +357,7 @@ void static_objects_are_readonly()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const static_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_STATIC, 0, 1, 0);
     StellaObject static_object{};
@@ -385,7 +385,7 @@ void primitives_reject_foreign_object()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 1);
     StellaObject foreign{};
@@ -399,7 +399,7 @@ void update_object_replaces_layout()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const old_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_UPDATABLE, 0, 1, 1, 3);
     auto const new_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_UPDATABLE, 0, 2, 1, 3);
@@ -430,7 +430,7 @@ void update_object_with_spare_slots_clears_them()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const old_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_UPDATABLE, 0, 2, 0, 3);
     auto const new_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_UPDATABLE, 0, 1, 1, 3);
@@ -456,7 +456,7 @@ void update_object_rejects_misuse()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
-    ctx.heap().init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const updatable_desc = make_desc(STELLA_OBJECT_DATA, STELLA_DESCRIPTOR_UPDATABLE, 0, 1, 0, 2);
     auto const fixed_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0, 2);
@@ -487,6 +487,7 @@ void print_roots_writes_both_lists()
 {
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
+    ctx.init(make_config(1024));
 
     FILE* output = std::tmpfile();
     CHECK(output != nullptr);

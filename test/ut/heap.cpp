@@ -1,6 +1,7 @@
 #include <gc/context.hpp>
 
 #include <iostream>
+#include <vector>
 
 #include "test_util.hpp"
 
@@ -136,7 +137,7 @@ void collection_preserves_reachable_graph()
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
     auto& heap = ctx.heap();
-    heap.init(make_config(1024));
+    ctx.init(make_config(1024));
 
     auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     auto const y_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
@@ -189,7 +190,7 @@ void collection_is_incremental()
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
     auto& heap = ctx.heap();
-    heap.init(make_config(256));
+    ctx.init(make_config(256));
 
     auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     auto const y_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
@@ -251,7 +252,7 @@ void collection_keeps_objects_allocated_during_collection()
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
     auto& heap = ctx.heap();
-    heap.init(make_config(256));
+    ctx.init(make_config(256));
 
     auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
 
@@ -277,7 +278,7 @@ void oom_when_live_objects_do_not_fit_semispace()
     StellaGcStats stats = test::make_stats();
     gc::Context ctx{stats};
     auto& heap = ctx.heap();
-    heap.init(make_config(64));
+    ctx.init(make_config(64));
 
     auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
     auto const y_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
@@ -307,11 +308,151 @@ void oom_when_live_objects_do_not_fit_semispace()
     CHECK(stats.failed_allocations == 1);
 }
 
+void init_rejects_invalid_tuning()
+{
+    StellaGcStats stats = test::make_stats();
+    gc::Context ctx{stats};
+    auto& heap = ctx.heap();
+
+    gc::config cfg = test::make_config(512);
+    cfg.scansPerStep = 0;
+    CHECK_VIOLATION(heap.init(cfg), "zero scans per allocation step");
+
+    cfg = gc::config{test::make_config(512)};
+    cfg.scansPerStep = 1;
+    cfg.collectionThreshhold = 0;
+    CHECK_VIOLATION(heap.init(cfg), "collection threshold out of range");
+
+    cfg.scansPerStep = 1;
+    cfg.collectionThreshhold = 101;
+    CHECK_VIOLATION(heap.init(cfg), "collection threshold out of range");
+}
+
+void scans_per_step_budget_is_configurable()
+{
+    StellaGcStats stats = test::make_stats();
+    gc::Context ctx{stats};
+    auto& heap = ctx.heap();
+
+    gc::config cfg = test::make_config(512);
+    cfg.scansPerStep = 3;
+    ctx.init(cfg);
+
+    auto const link_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
+    auto const size_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
+
+    std::vector<StellaValue> chain;
+    StellaValue slot_head = nullptr;
+    ctx.pushDynamicRoot(&slot_head);
+    for (int i = 0; i < 8; ++i)
+    {
+        chain.push_back(heap.alloc(&link_desc));
+    }
+    for (size_t i = 0; i + 1 < chain.size(); ++i) { ctx.initManaged(chain[i], 0, chain[i + 1]); }
+    slot_head = chain[0];
+
+    while (stats.collections == 0) { heap.alloc(&size_desc); }
+
+    CHECK(stats.collections == 1);
+    CHECK(heap.isCollecting());
+    CHECK(stats.total_scans == 0);
+
+    heap.alloc(&size_desc);
+    CHECK(stats.total_scans == 3);
+    CHECK(heap.isCollecting());
+
+    heap.alloc(&size_desc);
+    CHECK(stats.total_scans == 6);
+    CHECK(heap.isCollecting());
+
+    heap.alloc(&size_desc);
+    CHECK(stats.total_scans == 8);
+    CHECK(!heap.isCollecting());
+}
+
+void collection_starts_when_threshold_reached()
+{
+    StellaGcStats stats = test::make_stats();
+    gc::Context ctx{stats};
+    auto& heap = ctx.heap();
+
+    gc::config cfg = test::make_config(512);
+    cfg.collectionThreshhold = 75;
+    ctx.init(cfg);
+
+    auto const x_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
+    auto const y_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
+
+    StellaValue slot_x = nullptr;
+    ctx.pushDynamicRoot(&slot_x);
+    slot_x = heap.alloc(&x_desc);
+    StellaValue y_old = heap.alloc(&y_desc);
+    ctx.initManaged(slot_x, 0, y_old);
+
+    for (int i = 0; i < 10; ++i) { heap.alloc(&y_desc); }
+    CHECK(stats.collections == 0);
+    CHECK(heap.fromNext() == 12 * test::rounded_size(y_desc));
+
+    StellaValue during = heap.alloc(&y_desc);
+    CHECK(stats.collections == 1);
+    CHECK(heap.isCollecting());
+    CHECK(heap.limit() == 512 - test::rounded_size(y_desc));
+
+    heap.alloc(&y_desc);
+    CHECK(heap.isCollecting());
+
+    heap.alloc(&y_desc);
+    CHECK(!heap.isCollecting());
+    CHECK(heap.inFromSpace(during));
+    CHECK(during->descriptor == &y_desc);
+}
+
+void threshold_counts_objects_allocated_during_collection()
+{
+    StellaGcStats stats = test::make_stats();
+    gc::Context ctx{stats};
+    auto& heap = ctx.heap();
+
+    gc::config cfg = test::make_config(512);
+    cfg.collectionThreshhold = 75;
+    ctx.init(cfg);
+
+    auto const link_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 1, 0);
+    auto const size_desc = make_desc(STELLA_OBJECT_DATA, 0, 0, 0, 0);
+
+    std::vector<StellaValue> chain;
+    StellaValue slot_head = nullptr;
+    ctx.pushDynamicRoot(&slot_head);
+    for (int i = 0; i < 6; ++i) { chain.push_back(heap.alloc(&link_desc)); }
+    for (size_t i = 0; i + 1 < chain.size(); ++i) { ctx.initManaged(chain[i], 0, chain[i + 1]); }
+    slot_head = chain[0];
+
+    while (stats.collections == 0) { heap.alloc(&size_desc); }
+
+    CHECK(stats.collections == 1);
+    CHECK(heap.isCollecting());
+
+    for (int i = 0; i < 5; ++i)
+    {
+        heap.alloc(&size_desc);
+        CHECK(heap.isCollecting());
+    }
+
+    CHECK(heap.fromNext() == 6 * test::rounded_size(link_desc));
+    CHECK(heap.limit() == 512 - 6 * test::rounded_size(size_desc));
+
+    StellaValue during = heap.alloc(&size_desc);
+    CHECK(stats.collections == 2);
+    CHECK(heap.isCollecting());
+    CHECK(heap.inToSpace(during));
+}
+
 void run_all()
 {
     init_allocates_both_spaces();
     init_boundary_is_inclusive();
     init_rejects_zero_and_reinitialization();
+    init_rejects_invalid_tuning();
     alloc_places_objects_consecutively();
     alloc_grows_accounting();
     forward_is_identity_outside_collection();
@@ -319,6 +460,9 @@ void run_all()
     collection_is_incremental();
     collection_keeps_objects_allocated_during_collection();
     oom_when_live_objects_do_not_fit_semispace();
+    scans_per_step_budget_is_configurable();
+    collection_starts_when_threshold_reached();
+    threshold_counts_objects_allocated_during_collection();
 }
 
 } // namespace

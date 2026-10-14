@@ -1,7 +1,7 @@
 CXX      ?= g++
 CXXFLAGS ?= -std=c++23 -O1 -g -I../../include -I../../3dparty -DFMT_HEADER_ONLY
 
-TESTS = root context heap
+TESTS = root context heap config
 BINS  = $(TESTS:%=%.test)
 
 .PHONY: all check clean
